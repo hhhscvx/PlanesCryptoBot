@@ -1,5 +1,5 @@
 import asyncio
-from random import randint
+from random import randint, uniform
 from time import time
 from urllib.parse import unquote
 
@@ -108,6 +108,32 @@ class Tapper:
             logger.error(f"{self.session_name} | Unknown error when Get Profile: {error}")
             await asyncio.sleep(delay=3)
 
+    async def get_tasks(self, http_client: ClientSession) -> Profile:
+        """
+        for task in get_tasks['tasks']: task[status, task]
+            if task['status'] == 'idle'
+        """
+        try:
+            response = await http_client.get(url='https://backend.planescrypto.com/tasks')
+            response.raise_for_status()
+
+            return await response.json()
+        except Exception as error:
+            logger.error(f"{self.session_name} | Unknown error when Get Tasks: {error}")
+            await asyncio.sleep(delay=3)
+
+    async def complete_task(self, http_client: ClientSession, task_id: int) -> Profile:
+        """status"""
+        try:
+            response = await http_client.post(url=f'https://backend.planescrypto.com/tasks/check/{task_id}',
+                                             json={})
+            response.raise_for_status()
+
+            return await response.json()
+        except Exception as error:
+            logger.error(f"{self.session_name} | Unknown error when Complete Task #{task_id}: {error}")
+            await asyncio.sleep(delay=3)
+
     async def check_proxy(self, http_client: aiohttp.ClientSession, proxy: Proxy) -> None:
         try:
             response = await http_client.get(url='https://httpbin.org/ip', timeout=aiohttp.ClientTimeout(5))
@@ -125,28 +151,40 @@ class Tapper:
             if proxy:
                 await self.check_proxy(http_client=http_client, proxy=proxy)
 
-            while True:
-                try:
-                    if access_token_expires_at == 0 or time() > access_token_expires_at:
-                        tg_web_data = await self.get_tg_web_data(proxy=proxy)
-                        login = await self.login(http_client=http_client, tg_web_data=tg_web_data)
+            try:
+                if access_token_expires_at == 0 or time() > access_token_expires_at:
+                    tg_web_data = await self.get_tg_web_data(proxy=proxy)
+                    login = await self.login(http_client=http_client, tg_web_data=tg_web_data)
 
-                        access_token = login['access_token']
-                        http_client.headers["Authorization"] = f'Bearer {access_token}'
-                        headers["Authorization"] = f'Bearer {access_token}'
-                        access_token_expires_at = time() + 3600
+                    access_token = login['access_token']
+                    http_client.headers["Authorization"] = f'Bearer {access_token}'
+                    headers["Authorization"] = f'Bearer {access_token}'
+                    access_token_expires_at = time() + 3600
 
-                    profile = await self.get_profile(http_client)
+                profile = await self.get_profile(http_client)
 
-                    logger.success(f"{self.session_name} | Login! | Balance: {profile.balance}")
-                    await asyncio.sleep(20)
+                logger.success(f"{self.session_name} | Login! | Balance: {profile.balance}")
+                await asyncio.sleep(2)
 
-                except InvalidSession as error:
-                    raise error
+                tasks = await self.get_tasks(http_client)
+                await asyncio.sleep(0.5)
+                for task in tasks['tasks']:
+                    if task['status'] == 'idle' and task['task']['is_disabled'] is False:
+                        complete_task = await self.complete_task(http_client, task_id=task['task']['id'])
+                        if (task_status := complete_task['status']) == 'succeeded':
+                            logger.success(
+                                f"{self.session_name} | Successfully complete task #{task['task']['id']}! <g>Earned +{task['task']['award']}</g>")
+                        else:
+                            logger.debug(f"{self.session_name} | Cannot complete task "
+                                         f"{task['task']['title']} | Status: {task_status}")
+                    await asyncio.sleep(uniform(1, 3))
 
-                except Exception as error:
-                    logger.error(f"{self.session_name} | Unknown error: {error}")
-                    await asyncio.sleep(delay=3)
+            except InvalidSession as error:
+                raise error
+
+            except Exception as error:
+                logger.error(f"{self.session_name} | Unknown error: {error}")
+                await asyncio.sleep(delay=3)
 
 
 async def run_tapper(tg_client: Client, proxy: str | None):
