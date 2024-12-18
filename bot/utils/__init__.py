@@ -1,4 +1,5 @@
 from .logger import logger
+from .schemas import Profile
 
 
 import os
