@@ -1,8 +1,8 @@
 headers = {
     'accept': 'application/json, text/plain, */*',
     'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
-    'origin': 'https://frontend.yumify.one',
-    'referer': 'https://frontend.yumify.one/',
+    'origin': 'https://planescrypto.com',
+    'referer': 'https://planescrypto.com/',
     'sec-ch-ua': '"Android WebView";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
     'sec-ch-ua-mobile': '?1',
     'sec-ch-ua-platform': '"Android"',
